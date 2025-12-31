@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Calculadora Multi-Abas</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark"></div>
+        <div>
+          <div class="title">MultiCalc</div>
+          <div class="subtitle">Calcule em várias abas com etiquetas</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="ghost" id="toggleHistory">Histórico</button>
+        <button class="ghost" id="clearAll">Resetar tudo</button>
+        <button class="primary" id="addTab">+ Nova aba</button>
+      </div>
+    </header>
+
+    <section class="tabs-bar" id="tabsBar"></section>
+
+    <main class="layout">
+      <section class="panel" id="calculatorPanel">
+        <div class="panel-header">
+          <input id="labelInput" class="tag-input" placeholder="Etiqueta da aba (ex.: Cliente, Projeto...)" maxlength="30">
+          <div class="panel-actions">
+            <button class="ghost" id="duplicateTab">Duplicar</button>
+            <button class="ghost danger" id="deleteTab">Excluir</button>
+          </div>
+        </div>
+
+        <div class="expression-row">
+          <input id="expressionInput" class="expression" inputmode="decimal" autocomplete="off" placeholder="Digite a expressão (ex.: 24.5*3-8/2)">
+          <button class="ghost" id="clearExpression">Limpar</button>
+        </div>
+
+        <div class="result-card">
+          <div class="label">Resultado atual</div>
+          <div class="result" id="currentResult">0</div>
+          <div class="timestamp" id="updatedAt">Sem cálculos ainda</div>
+        </div>
+        <div class="keypad" id="keypad">
+          <button data-key="7">7</button>
+          <button data-key="8">8</button>
+          <button data-key="9">9</button>
+          <button class="op" data-key="/">/</button>
+
+          <button data-key="4">4</button>
+          <button data-key="5">5</button>
+          <button data-key="6">6</button>
+          <button class="op" data-key="*">x</button>
+
+          <button data-key="1">1</button>
+          <button data-key="2">2</button>
+          <button data-key="3">3</button>
+          <button class="op" data-key="-">-</button>
+
+          <button data-key="0">0</button>
+          <button data-key=".">.</button>
+          <button data-key=",">,</button>
+          <button class="op" data-key="+">+</button>
+
+          <button data-key="(">(</button>
+          <button data-key=")">)</button>
+          <button class="utility" data-key="backspace">DEL</button>
+          <button class="primary compute" id="compute">Calcular</button>
+        </div>
+
+        <section class="history">
+          <div class="history-header">
+            <div>
+              <div class="label">Histórico desta aba</div>
+              <div class="small">Mantém cada cálculo feito aqui.</div>
+            </div>
+            <button class="ghost" id="clearTabHistory">Limpar histórico</button>
+          </div>
+          <div class="history-list" id="tabHistory"></div>
+        </section>
+      </section>
+
+      <aside class="panel side-panel" id="historyPanel">
+        <div class="panel-header">
+          <div>
+            <div class="label">Histórico global</div>
+            <div class="small">Tudo que foi calculado, com etiqueta e data.</div>
+          </div>
+          <button class="ghost" id="closeHistory">Fechar</button>
+        </div>
+        <div class="history-list" id="globalHistory"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'multicalc_state_v1';
+      const tabsBar = document.getElementById('tabsBar');
+      const historyPanel = document.getElementById('historyPanel');
+      const calculatorPanel = document.getElementById('calculatorPanel');
+      const labelInput = document.getElementById('labelInput');
+      const expressionInput = document.getElementById('expressionInput');
+      const currentResult = document.getElementById('currentResult');
+      const updatedAt = document.getElementById('updatedAt');
+      const tabHistory = document.getElementById('tabHistory');
+      const globalHistory = document.getElementById('globalHistory');
+      const keypad = document.getElementById('keypad');
+      const emptyUpdatedAtText = updatedAt.textContent;
+      const AUTO_COMPUTE_DELAY = 200;
+      let autoComputeTimer = null;
+
+      const state = loadState();
+      render();
+
+      document.getElementById('addTab').addEventListener('click', addTab);
+      document.getElementById('toggleHistory').addEventListener('click', toggleHistory);
+      document.getElementById('closeHistory').addEventListener('click', toggleHistory);
+      document.getElementById('clearAll').addEventListener('click', resetAll);
+      document.getElementById('duplicateTab').addEventListener('click', duplicateTab);
+      document.getElementById('deleteTab').addEventListener('click', deleteTab);
+      document.getElementById('clearExpression').addEventListener('click', () => setExpression(''));
+      document.getElementById('compute').addEventListener('click', computeActive);
+      document.getElementById('clearTabHistory').addEventListener('click', clearTabHistory);
+      labelInput.addEventListener('input', handleLabelChange);
+      expressionInput.addEventListener('keydown', handleExpressionKey);
+      expressionInput.addEventListener('input', (e) => setExpression(e.target.value));
+
+      keypad.addEventListener('click', (e) => {
+        const key = e.target.getAttribute('data-key');
+        if (!key) return;
+        if (key === 'backspace') {
+          setExpression(expressionInput.value.slice(0, -1));
+        } else {
+          setExpression(expressionInput.value + key);
+        }
+      });
+
+      function loadState() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.tabs?.length) {
+              if (!Array.isArray(parsed.globalHistory)) {
+                const derived = parsed.tabs.flatMap((t) =>
+                  t.history.map((entry) => ({ ...entry, tabLabel: t.label }))
+                );
+                return { ...parsed, globalHistory: derived };
+              }
+              return parsed;
+            }
+          }
+        } catch (err) {
+          console.warn('Não foi possível carregar o estado salvo:', err);
+        }
+        const firstTab = makeTab('Aba 1');
+        return { tabs: [firstTab], activeId: firstTab.id, globalHistory: [] };
+      }
+
+      function persist() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function makeTab(label) {
+        const id = 'tab_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        return {
+          id,
+          label,
+          expression: '',
+          result: '0',
+          updatedAt: null,
+          history: []
+        };
+      }
+
+      function addTab() {
+        const index = state.tabs.length + 1;
+        const tab = makeTab('Aba ' + index);
+        state.tabs.push(tab);
+        state.activeId = tab.id;
+        persist();
+        render();
+      }
+
+      function duplicateTab() {
+        const current = getActive();
+        if (!current) return;
+        const copy = makeTab(current.label + ' (cópia)');
+        copy.expression = current.expression;
+        copy.result = current.result;
+        copy.updatedAt = current.updatedAt;
+        copy.history = [...current.history];
+        state.tabs.push(copy);
+        state.activeId = copy.id;
+        persist();
+        render();
+      }
+
+      function deleteTab() {
+        if (state.tabs.length === 1) {
+          alert('Mantenha pelo menos uma aba.');
+          return;
+        }
+        const current = getActive();
+        state.tabs = state.tabs.filter((t) => t.id !== state.activeId);
+        state.activeId = state.tabs[0].id;
+        persist();
+        render();
+      }
+
+      function resetAll() {
+        if (!confirm('Limpar todas as abas e históricos?')) return;
+        const fresh = makeTab('Aba 1');
+        state.tabs = [fresh];
+        state.activeId = fresh.id;
+        state.globalHistory = [];
+        persist();
+        render();
+      }
+
+      function toggleHistory() {
+        historyPanel.classList.toggle('open');
+        calculatorPanel.classList.toggle('shrink');
+      }
+
+      function queueAutoCompute() {
+        if (autoComputeTimer) {
+          clearTimeout(autoComputeTimer);
+        }
+        autoComputeTimer = setTimeout(() => {
+          autoComputeTimer = null;
+          previewActive();
+        }, AUTO_COMPUTE_DELAY);
+      }
+
+      function previewActive() {
+        const current = getActive();
+        if (!current) return;
+        const rawExpr = expressionInput.value.trim();
+        if (!rawExpr) {
+          current.result = '0';
+          current.updatedAt = null;
+          persist();
+          updateResultDisplay(current.result, current.updatedAt);
+          updateActiveTabResult(current.result);
+          return;
+        }
+        try {
+          const result = evaluateExpression(rawExpr);
+          const formatted = Number.isInteger(result) ? result.toString() : result.toFixed(6).replace(/\.?0+$/, '');
+          const timestamp = new Date().toISOString();
+          current.result = formatted;
+          current.updatedAt = timestamp;
+          persist();
+          updateResultDisplay(formatted, timestamp);
+          updateActiveTabResult(formatted);
+        } catch (err) {
+          // Ignore partial/invalid input while typing.
+        }
+      }
+
+      function updateResultDisplay(result, timestamp) {
+        currentResult.textContent = result || '0';
+        updatedAt.textContent = timestamp
+          ? 'Atualizado em ' + formatDate(timestamp)
+          : emptyUpdatedAtText;
+      }
+
+      function updateActiveTabResult(result) {
+        const activeResult = tabsBar.querySelector('.tab.active .tab-result');
+        if (activeResult) {
+          activeResult.textContent = result || '0';
+        }
+      }
+
+      function setExpression(value) {
+        expressionInput.value = value;
+        const current = getActive();
+        if (current) {
+          current.expression = value;
+          persist();
+          queueAutoCompute();
+        }
+      }
+
+      function handleLabelChange(e) {
+        const current = getActive();
+        if (!current) return;
+        current.label = e.target.value || 'Sem etiqueta';
+        persist();
+        renderTabs();
+        renderHistory();
+      }
+
+      function handleExpressionKey(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          computeActive();
+        }
+      }
+
+      function evaluateExpression(expr) {
+        const sanitized = expr.replace(/,/g, '.').replace(/\s+/g, '');
+        if (!sanitized) throw new Error('Digite algo para calcular.');
+        if (/[^0-9+\-*/().]/.test(sanitized)) {
+          throw new Error('Use apenas números e operações básicas.');
+        }
+        // Avaliação controlada usando Function; entrada é filtrada.
+        const result = Function('return ' + sanitized)();
+        if (typeof result !== 'number' || Number.isNaN(result) || !Number.isFinite(result)) {
+          throw new Error('Expressão inválida.');
+        }
+        return result;
+      }
+
+      function computeActive() {
+        const current = getActive();
+        if (!current) return;
+        if (autoComputeTimer) {
+          clearTimeout(autoComputeTimer);
+          autoComputeTimer = null;
+        }
+        try {
+          const rawExpr = expressionInput.value.trim();
+          const result = evaluateExpression(rawExpr);
+          const formatted = Number.isInteger(result) ? result.toString() : result.toFixed(6).replace(/\.?0+$/, '');
+          const timestamp = new Date().toISOString();
+          current.result = formatted;
+          current.updatedAt = timestamp;
+          const historyEntry = {
+            expr: rawExpr || current.expression,
+            result: formatted,
+            label: current.label,
+            timestamp
+          };
+          current.history.unshift(historyEntry);
+          current.history = current.history.slice(0, 100);
+          if (!Array.isArray(state.globalHistory)) {
+            state.globalHistory = [];
+          }
+          state.globalHistory.unshift({ ...historyEntry, tabLabel: current.label });
+          state.globalHistory = state.globalHistory.slice(0, 50);
+          current.expression = formatted;
+          expressionInput.value = formatted;
+          persist();
+          renderActive();
+          renderTabs();
+          renderHistory();
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+
+      function clearTabHistory() {
+        const current = getActive();
+        if (!current) return;
+        current.history = [];
+        persist();
+        renderActive();
+        renderHistory();
+      }
+
+      function setActive(id) {
+        state.activeId = id;
+        persist();
+        renderTabs();
+        renderActive();
+      }
+
+      function getActive() {
+        return state.tabs.find((t) => t.id === state.activeId);
+      }
+
+      function render() {
+        renderTabs();
+        renderActive();
+        renderHistory();
+      }
+
+      function renderTabs() {
+        tabsBar.innerHTML = '';
+        state.tabs.forEach((tab) => {
+          const button = document.createElement('button');
+          button.className = 'tab' + (tab.id === state.activeId ? ' active' : '');
+          button.innerHTML = '<span class=\"tab-label\">' + escapeHTML(tab.label || 'Sem etiqueta') + '</span>' +
+            '<span class=\"tab-result\">' + (tab.result || '0') + '</span>';
+          button.addEventListener('click', () => setActive(tab.id));
+          tabsBar.appendChild(button);
+        });
+      }
+
+      function renderActive() {
+        const current = getActive();
+        if (!current) return;
+        labelInput.value = current.label;
+        expressionInput.value = current.expression;
+        updateResultDisplay(current.result, current.updatedAt);
+
+        tabHistory.innerHTML = '';
+        if (!current.history.length) {
+          tabHistory.innerHTML = '<div class=\"empty\">Nada calculado aqui ainda.</div>';
+          return;
+        }
+        current.history.forEach((entry) => {
+          const item = document.createElement('div');
+          item.className = 'history-item';
+          item.innerHTML = '<div class=\"line\"><span class=\"expr\">' + escapeHTML(entry.expr) + '</span>' +
+            '<span class=\"res\">= ' + entry.result + '</span></div>' +
+            '<div class=\"meta\">' + formatDate(entry.timestamp) + '</div>';
+          tabHistory.appendChild(item);
+        });
+      }
+
+      function renderHistory() {
+        const allEntries = (state.globalHistory || [])
+          .slice()
+          .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+        globalHistory.innerHTML = '';
+        if (!allEntries.length) {
+          globalHistory.innerHTML = '<div class=\"empty\">Histórico vazio.</div>';
+          return;
+        }
+
+        allEntries.forEach((entry) => {
+          const item = document.createElement('div');
+          item.className = 'history-item';
+          const tagLabel = entry.tabLabel || entry.label || 'Sem etiqueta';
+          item.innerHTML = '<div class=\"line\"><span class=\"tag\">' + escapeHTML(tagLabel) + '</span>' +
+            '<span class=\"expr\">' + escapeHTML(entry.expr) + '</span>' +
+            '<span class=\"res\">= ' + entry.result + '</span></div>' +
+            '<div class=\"meta\">' + formatDate(entry.timestamp) + '</div>';
+          globalHistory.appendChild(item);
+        });
+      }
+
+      function escapeHTML(str) {
+        return (str || '').replace(/[&<>"']/g, (ch) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        }[ch]));
+      }
+
+      function formatDate(ts) {
+        const d = new Date(ts);
+        return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      }
+    })();
+  </script>
+</body>
+</html>
+
+
+
+
+
