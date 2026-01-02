@@ -225,6 +225,12 @@ button.danger {
   font-size: 16px;
 }
 
+.expression {
+  min-height: 80px;
+  font-size: 30px;
+  font-weight: 700;
+}
+
 .tag-input:focus,
 .expression:focus {
   outline: 1px solid var(--accent);
@@ -233,7 +239,13 @@ button.danger {
 .expression-row {
   display: flex;
   gap: 8px;
+  align-items: stretch;
+}
+
+.expression-row button {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
 }
 
 .result-card {
