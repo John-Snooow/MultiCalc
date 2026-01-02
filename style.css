@@ -293,6 +293,8 @@ button.danger {
 .keypad .utility {
   background: #1b202b;
   color: var(--muted);
+  font-size: 20px;
+  font-weight: 900;
 }
 
 .keypad .compute {
