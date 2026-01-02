@@ -32,6 +32,7 @@
           <div class="panel-actions">
             <button class="ghost" id="duplicateTab">Duplicar</button>
             <button class="ghost danger" id="deleteTab">Excluir</button>
+            <button class="ghost compact-only" id="clearExpressionCompact">Limpar</button>
           </div>
         </div>
 
@@ -119,6 +120,8 @@
       const calculatorPanel = document.getElementById('calculatorPanel');
       const activeTabLabel = document.getElementById('activeTabLabel');
       const expressionInput = document.getElementById('expressionInput');
+      const clearExpressionBtn = document.getElementById('clearExpression');
+      const clearExpressionCompact = document.getElementById('clearExpressionCompact');
       const currentResult = document.getElementById('currentResult');
       const updatedAt = document.getElementById('updatedAt');
       const tabHistory = document.getElementById('tabHistory');
@@ -141,7 +144,10 @@
       document.getElementById('clearAll').addEventListener('click', resetAll);
       document.getElementById('duplicateTab').addEventListener('click', duplicateTab);
       document.getElementById('deleteTab').addEventListener('click', deleteTab);
-      document.getElementById('clearExpression').addEventListener('click', () => setExpression(''));
+      clearExpressionBtn.addEventListener('click', () => setExpression(''));
+      if (clearExpressionCompact) {
+        clearExpressionCompact.addEventListener('click', () => setExpression(''));
+      }
       document.getElementById('compute').addEventListener('click', computeActive);
       document.getElementById('clearTabHistory').addEventListener('click', clearTabHistory);
       expressionInput.addEventListener('keydown', handleExpressionKey);

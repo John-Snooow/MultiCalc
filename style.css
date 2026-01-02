@@ -209,6 +209,10 @@ button.danger {
   gap: 8px;
 }
 
+.compact-only {
+  display: none;
+}
+
 .panel-title {
   font-size: 16px;
   font-weight: 700;
@@ -501,6 +505,14 @@ button.danger {
   .panel-actions {
     width: auto;
     justify-content: flex-end;
+  }
+
+  #clearExpression {
+    display: none;
+  }
+
+  #clearExpressionCompact {
+    display: inline-flex;
   }
 
   .history-list {
