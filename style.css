@@ -482,12 +482,22 @@ button.danger {
     align-items: flex-start;
   }
 
+  .panel-header {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .panel-title {
+    flex: 1;
+    min-width: 0;
+  }
+
   .expression-row {
     flex-direction: column;
   }
 
   .panel-actions {
-    width: 100%;
+    width: auto;
     justify-content: flex-end;
   }
 
