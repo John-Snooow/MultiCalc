@@ -28,7 +28,7 @@
     <main class="layout">
       <section class="panel" id="calculatorPanel">
         <div class="panel-header">
-          <input id="labelInput" class="tag-input" placeholder="Etiqueta da aba (ex.: Cliente, Projeto...)" maxlength="30">
+          <div class="panel-title" id="activeTabLabel">Aba 1</div>
           <div class="panel-actions">
             <button class="ghost" id="duplicateTab">Duplicar</button>
             <button class="ghost danger" id="deleteTab">Excluir</button>
@@ -97,19 +97,37 @@
     </main>
   </div>
 
+  <div class="modal" id="tabNameModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="tabNameTitle">
+      <div class="modal-title" id="tabNameTitle">Nome da aba</div>
+      <div class="modal-body">
+        <input id="newTabName" class="tag-input" placeholder="Digite o nome da aba" maxlength="30">
+      </div>
+      <div class="modal-actions">
+        <button class="ghost" id="cancelNewTab">Cancelar</button>
+        <button class="primary" id="confirmNewTab">OK</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       const STORAGE_KEY = 'multicalc_state_v1';
       const tabsBar = document.getElementById('tabsBar');
       const historyPanel = document.getElementById('historyPanel');
       const calculatorPanel = document.getElementById('calculatorPanel');
-      const labelInput = document.getElementById('labelInput');
+      const activeTabLabel = document.getElementById('activeTabLabel');
       const expressionInput = document.getElementById('expressionInput');
       const currentResult = document.getElementById('currentResult');
       const updatedAt = document.getElementById('updatedAt');
       const tabHistory = document.getElementById('tabHistory');
       const globalHistory = document.getElementById('globalHistory');
       const keypad = document.getElementById('keypad');
+      const tabNameModal = document.getElementById('tabNameModal');
+      const newTabNameInput = document.getElementById('newTabName');
+      const confirmNewTab = document.getElementById('confirmNewTab');
+      const cancelNewTab = document.getElementById('cancelNewTab');
       const emptyUpdatedAtText = updatedAt.textContent;
       const AUTO_COMPUTE_DELAY = 200;
       let autoComputeTimer = null;
@@ -117,7 +135,7 @@
       const state = loadState();
       render();
 
-      document.getElementById('addTab').addEventListener('click', addTab);
+      document.getElementById('addTab').addEventListener('click', openNewTabModal);
       document.getElementById('toggleHistory').addEventListener('click', toggleHistory);
       document.getElementById('closeHistory').addEventListener('click', toggleHistory);
       document.getElementById('clearAll').addEventListener('click', resetAll);
@@ -126,9 +144,24 @@
       document.getElementById('clearExpression').addEventListener('click', () => setExpression(''));
       document.getElementById('compute').addEventListener('click', computeActive);
       document.getElementById('clearTabHistory').addEventListener('click', clearTabHistory);
-      labelInput.addEventListener('input', handleLabelChange);
       expressionInput.addEventListener('keydown', handleExpressionKey);
       expressionInput.addEventListener('input', (e) => setExpression(e.target.value));
+      confirmNewTab.addEventListener('click', confirmNewTabName);
+      cancelNewTab.addEventListener('click', closeNewTabModal);
+      tabNameModal.addEventListener('click', (e) => {
+        if (e.target.dataset.close) {
+          closeNewTabModal();
+        }
+      });
+      newTabNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          confirmNewTabName();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          closeNewTabModal();
+        }
+      });
 
       keypad.addEventListener('click', (e) => {
         const key = e.target.getAttribute('data-key');
@@ -178,13 +211,32 @@
         };
       }
 
-      function addTab() {
+      function addTab(label) {
         const index = state.tabs.length + 1;
-        const tab = makeTab('Aba ' + index);
+        const tabLabel = (label || '').trim() || 'Aba ' + index;
+        const tab = makeTab(tabLabel);
         state.tabs.push(tab);
         state.activeId = tab.id;
         persist();
         render();
+      }
+
+      function openNewTabModal() {
+        newTabNameInput.value = '';
+        tabNameModal.classList.add('open');
+        tabNameModal.setAttribute('aria-hidden', 'false');
+        setTimeout(() => newTabNameInput.focus(), 0);
+      }
+
+      function closeNewTabModal() {
+        tabNameModal.classList.remove('open');
+        tabNameModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function confirmNewTabName() {
+        const name = newTabNameInput.value.trim();
+        addTab(name);
+        closeNewTabModal();
       }
 
       function duplicateTab() {
@@ -288,15 +340,6 @@
         }
       }
 
-      function handleLabelChange(e) {
-        const current = getActive();
-        if (!current) return;
-        current.label = e.target.value || 'Sem etiqueta';
-        persist();
-        renderTabs();
-        renderHistory();
-      }
-
       function handleExpressionKey(e) {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -397,7 +440,7 @@
       function renderActive() {
         const current = getActive();
         if (!current) return;
-        labelInput.value = current.label;
+        activeTabLabel.textContent = current.label || 'Sem etiqueta';
         expressionInput.value = current.expression;
         updateResultDisplay(current.result, current.updatedAt);
 
