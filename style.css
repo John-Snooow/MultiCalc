@@ -210,7 +210,7 @@ button.danger {
 }
 
 .compact-only {
-  display: none;
+  display: inline-flex;
 }
 
 .panel-title {
@@ -252,23 +252,49 @@ button.danger {
   justify-content: center;
 }
 
-.result-card {
+#clearExpression {
+  display: none;
+}
+
+.expression-card {
   margin: 14px 0;
   padding: 14px;
   border-radius: 14px;
   border: 1px dashed var(--border);
   background: linear-gradient(135deg, rgba(93, 240, 194, 0.08), rgba(69, 200, 155, 0.05));
+  display: grid;
+  gap: 10px;
 }
 
-.result-card .label {
+.expression-card .expression {
+  background: transparent;
+  border: none;
+  padding: 6px 0;
+}
+
+.expression-card .expression:focus {
+  outline: 1px solid var(--accent);
+  border-radius: 10px;
+}
+
+.expression-card .result-card {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.expression-card .label {
   color: var(--muted);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
-.result-card .result {
-  font-size: 30px;
+.expression-card .result {
+  font-size: 24px;
   font-weight: 800;
   margin: 4px 0;
 }
