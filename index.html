@@ -43,7 +43,6 @@
         </div>
 
         <div class="result-card">
-          <div class="label">Resultado atual</div>
           <div class="result" id="currentResult">0</div>
           <div class="timestamp" id="updatedAt">Sem cálculos ainda</div>
         </div>
@@ -303,7 +302,8 @@
         const current = getActive();
         if (!current) return;
         const rawExpr = expressionInput.value.trim();
-        if (!rawExpr) {
+        const exprForEval = normalizeExpression(rawExpr);
+        if (!exprForEval) {
           current.result = '0';
           current.updatedAt = null;
           persist();
@@ -312,7 +312,7 @@
           return;
         }
         try {
-          const result = evaluateExpression(rawExpr);
+          const result = evaluateExpression(exprForEval);
           const formatted = Number.isInteger(result) ? result.toString() : result.toFixed(6).replace(/\.?0+$/, '');
           const timestamp = new Date().toISOString();
           current.result = formatted;
@@ -358,7 +358,7 @@
       }
 
       function evaluateExpression(expr) {
-        const sanitized = expr.replace(/,/g, '.').replace(/\s+/g, '');
+        const sanitized = normalizeExpression(expr);
         if (!sanitized) throw new Error('Digite algo para calcular.');
         if (/[^0-9+\-*/().]/.test(sanitized)) {
           throw new Error('Use apenas números e operações básicas.');
@@ -380,13 +380,14 @@
         }
         try {
           const rawExpr = expressionInput.value.trim();
-          const result = evaluateExpression(rawExpr);
+          const exprForEval = normalizeExpression(rawExpr);
+          const result = evaluateExpression(exprForEval);
           const formatted = Number.isInteger(result) ? result.toString() : result.toFixed(6).replace(/\.?0+$/, '');
           const timestamp = new Date().toISOString();
           current.result = formatted;
           current.updatedAt = timestamp;
           const historyEntry = {
-            expr: rawExpr || current.expression,
+            expr: exprForEval || current.expression,
             result: formatted,
             label: current.label,
             timestamp
@@ -510,6 +511,14 @@
       function formatDate(ts) {
         const d = new Date(ts);
         return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      }
+
+      function normalizeExpression(expr) {
+        let sanitized = expr.replace(/,/g, '.').replace(/\s+/g, '');
+        while (sanitized && /[+\-*/.(]$/.test(sanitized)) {
+          sanitized = sanitized.slice(0, -1);
+        }
+        return sanitized;
       }
 
       function limitExpressionDigits(value) {
