@@ -133,6 +133,7 @@
       const cancelNewTab = document.getElementById('cancelNewTab');
       const emptyUpdatedAtText = updatedAt.textContent;
       const AUTO_COMPUTE_DELAY = 200;
+      const MAX_DIGITS = 16;
       let autoComputeTimer = null;
 
       const state = loadState();
@@ -337,10 +338,11 @@
       }
 
       function setExpression(value) {
-        expressionInput.value = value;
+        const limitedValue = limitExpressionDigits(value);
+        expressionInput.value = limitedValue;
         const current = getActive();
         if (current) {
-          current.expression = value;
+          current.expression = limitedValue;
           persist();
           queueAutoCompute();
         }
@@ -447,7 +449,12 @@
         const current = getActive();
         if (!current) return;
         activeTabLabel.textContent = current.label || 'Sem etiqueta';
-        expressionInput.value = current.expression;
+        const limitedValue = limitExpressionDigits(current.expression || '');
+        if (limitedValue !== current.expression) {
+          current.expression = limitedValue;
+          persist();
+        }
+        expressionInput.value = limitedValue;
         updateResultDisplay(current.result, current.updatedAt);
 
         tabHistory.innerHTML = '';
@@ -501,6 +508,22 @@
       function formatDate(ts) {
         const d = new Date(ts);
         return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      }
+
+      function limitExpressionDigits(value) {
+        let digits = 0;
+        let output = '';
+        for (const ch of value) {
+          const isDigit = ch >= '0' && ch <= '9';
+          if (isDigit) {
+            if (digits >= MAX_DIGITS) {
+              continue;
+            }
+            digits += 1;
+          }
+          output += ch;
+        }
+        return output;
       }
     })();
   </script>
